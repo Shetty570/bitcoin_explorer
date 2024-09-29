@@ -1,0 +1,55 @@
+# Binaries for programs and scripts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.dSYM
+*.out
+
+# Build directory (target)
+target/
+
+# Remove Cargo.lock from the gitignore if you're using binary or library crates
+Cargo.lock
+
+# Debug log files
+*.log
+
+# Rust specific
+**/target/
+**/Cargo.lock
+
+# Ignore the node_modules directory (if applicable)
+node_modules/
+
+# Backup files
+*.bak
+*.swp
+*.tmp
+*.old
+
+# IDEs and editors
+.vscode/
+.idea/
+*.iml
+
+# MacOS-specific files
+.DS_Store
+
+# For Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# For JetBrains IDEs like IntelliJ, CLion, etc.
+*.idea/
+*.iws
+*.iml
+*.ipr
+
+# Compiled Object files
+*.o
+*.obj
+
+# Environment variables
+.env
