@@ -8,17 +8,16 @@
 *.out
 
 # Build directory (target)
-target/
+**/target/
 
-# Remove Cargo.lock from the gitignore if you're using binary or library crates
-Cargo.lock
+# Cargo.lock for libraries, keep if you're using binary crates
+**/Cargo.lock
 
 # Debug log files
 *.log
 
 # Rust specific
 **/target/
-**/Cargo.lock
 
 # Ignore the node_modules directory (if applicable)
 node_modules/
@@ -42,9 +41,7 @@ node_modules/
 *.sublime-workspace
 
 # For JetBrains IDEs like IntelliJ, CLion, etc.
-*.idea/
 *.iws
-*.iml
 *.ipr
 
 # Compiled Object files
