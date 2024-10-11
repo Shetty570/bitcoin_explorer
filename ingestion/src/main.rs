@@ -1,62 +1,67 @@
-use bitcoincore_rpc::{Auth, Client, RpcApi};
-use tokio_postgres::{NoTls};
-use tokio::time::{sleep, Duration};
+mod error;
+mod onchain;
+mod offchain;
+
 use dotenv::dotenv;
-use std::env;
+use tokio::time::{sleep, Duration, Instant};
+use crate::error::IngestionError;
+use bb8::{Pool};
+use bb8_postgres::PostgresConnectionManager;
+use tokio_postgres::NoTls;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load environment variables
+async fn main() -> Result<(), IngestionError> {
     dotenv().ok();
 
-    // Connect to PostgreSQL database
-    let postgres_url = env::var("POSTGRES_URL").expect("POSTGRES_URL must be set");
-    let (client, connection) = tokio_postgres::connect(&postgres_url, NoTls).await?;
+    // Set up the Postgres connection pool
+    let manager = PostgresConnectionManager::new_from_stringlike(
+        &std::env::var("POSTGRES_URL")?,
+        NoTls,
+    )?;
+    let pool = Pool::builder()
+        .max_size(10)  // Adjust pool size based on your needs
+        .build(manager)
+        .await?;
 
-    // Spawn the connection in a background task
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Postgres connection error: {}", e);
-        }
-    });
-
-    // Set up Bitcoin Core RPC client
-    let rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
-    let rpc_user = env::var("RPC_USER").expect("RPC_USER must be set");
-    let rpc_password = env::var("RPC_PASSWORD").expect("RPC_PASSWORD must be set");
-
-    let rpc_auth = Auth::UserPass(rpc_user, rpc_password);
-    let bitcoin_client = Client::new(&rpc_url, rpc_auth)?;
-
-    // Variable to store the last block height fetched
-    let mut last_block_height = 0;
+    let mut last_ingested_block_height: i64 = -1;
+    let mut last_offchain_ingestion = Instant::now();
+    let mut last_onchain_ingestion = Instant::now();
 
     loop {
-        // Fetch latest block height from Bitcoin Core
-        let block_height = bitcoin_client.get_block_count()?;
-        println!("Fetched Block Height: {}", block_height);
+        let now = Instant::now();
 
-        // Check if the block height has changed
-        if block_height != last_block_height {
-            // Insert block height into PostgreSQL using correct case for table name
-            let query = "INSERT INTO \"BlockHeights\" (block_height) VALUES ($1)";
-            let result = client.execute(query, &[&(block_height as i64)]).await;
-
-            match result {
-                Ok(_) => {
-                    println!("Inserted new block height into database.");
-                    // Update the last block height after successful insertion
-                    last_block_height = block_height;
-                }
-                Err(e) => {
-                    eprintln!("Error inserting block height: {}", e);
-                }
+        // Off-chain ingestion every 60 seconds
+        if now.duration_since(last_offchain_ingestion) >= Duration::from_secs(60) {
+            let pool_clone = pool.clone();  // Clone the pool for off-chain task
+            if let Err(e) = offchain::ingest_offchain_data(pool_clone).await {
+                eprintln!("Off-chain ingestion failed: {:?}", e);
+            } else {
+                println!("Successfully ingested off-chain data.");
+                last_offchain_ingestion = Instant::now();
             }
-        } else {
-            println!("Block height has not changed, skipping insertion.");
         }
 
-        // Wait for 10 seconds before fetching the next block height
-        sleep(Duration::from_secs(10)).await;
+        // On-chain ingestion every 4 minutes or when a new block is detected
+        if now.duration_since(last_onchain_ingestion) >= Duration::from_secs(4 * 60) {
+            let latest_block_height = onchain::get_latest_block_height().await?;
+
+            if latest_block_height > last_ingested_block_height {
+                println!("New block detected: {}", latest_block_height);
+                let pool_clone = pool.clone();  // Clone the pool for on-chain task
+
+                if let Err(e) = onchain::ingest_onchain_data(latest_block_height, pool_clone).await {
+
+                    eprintln!("On-chain ingestion failed: {:?}", e);
+                } else {
+                    println!("Successfully ingested on-chain data for block: {}", latest_block_height);
+                    last_ingested_block_height = latest_block_height;
+                }
+
+                last_onchain_ingestion = now;
+            }
+        }
+
+        // Sleep briefly to avoid tight loops
+        sleep(Duration::from_secs(1)).await;
     }
 }

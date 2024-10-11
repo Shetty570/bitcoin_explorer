@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitcoincore-rpc = "0.15"
-tokio = { version = "1", features = ["full" ] }
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+bitcoincore-rpc = "0.14"
 tokio-postgres = "0.7"
 dotenv = "0.15"
+thiserror = "1.0"
+deadpool-postgres = "0.9"
+anyhow = "1.0"
+bb8 = "0.7"
+bb8-postgres = "0.7"
+
 
 

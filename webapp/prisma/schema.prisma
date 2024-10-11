@@ -12,3 +12,37 @@ model BlockHeights {
   block_height BigInt
   timestamp    DateTime @default(now())
 }
+
+model OnChainData {
+  id               Int           @id @default(autoincrement())
+  block_hash       String        @unique
+  block_height     Int
+  block_time       DateTime
+  num_transactions Int
+  Transaction      Transaction[]
+}
+
+model OffChainData {
+  id                 Int      @id @default(autoincrement())
+  price              Float
+  market_cap         Float
+  volume             Float
+  circulating_supply Float
+  price_change_24h   Float?
+  price_change_1h    Float?
+  high_24h           Float?
+  low_24h            Float?
+  timestamp          DateTime @default(now())
+}
+
+model Transaction {
+  id          Int         @id @default(autoincrement())
+  tx_id       String      @unique
+  block_hash  String
+  num_inputs  Int
+  num_outputs Int
+  amount      Float?
+  onChainData OnChainData @relation(fields: [block_hash], references: [block_hash])
+
+  @@index([block_hash])
+}
