@@ -1,4 +1,6 @@
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bb8::Pool;
+use bb8_postgres::PostgresConnectionManager;
 use tokio_postgres::NoTls;
 use crate::error::IngestionError;
 use std::convert::TryInto;
@@ -19,7 +21,10 @@ pub async fn get_latest_block_height() -> Result<i64, IngestionError> {
 }
 
 // Ingest new block and the latest 10 transactions
-pub async fn ingest_onchain_data(latest_block_height: i64) -> Result<(), IngestionError> {
+pub async fn ingest_onchain_data(
+    latest_block_height: i64,
+    pool: Pool<PostgresConnectionManager<NoTls>>,
+) -> Result<(), IngestionError> {
     // Fetch block details using the block height
     let rpc_url = std::env::var("RPC_URL")?;
     let rpc_user = std::env::var("RPC_USER")?;
@@ -38,16 +43,11 @@ pub async fn ingest_onchain_data(latest_block_height: i64) -> Result<(), Ingesti
     let block_time = block.header.time as f64;
     let num_transactions = block.txdata.len();
 
-    // Insert block data into OnChainData table
-    let (pg_client, connection) = tokio_postgres::connect(&std::env::var("POSTGRES_URL")?, NoTls).await?;
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Database connection error: {}", e);
-        }
-    });
+    // Get a connection from the pool
+    let client = pool.get().await?;
 
     // Insert the block data using ON CONFLICT to handle duplicates
-    pg_client
+    client
         .execute(
             r#"INSERT INTO "OnChainData" (block_height, block_hash, block_time, num_transactions) 
                VALUES ($1, $2, TO_TIMESTAMP($3), $4) 
@@ -65,7 +65,7 @@ pub async fn ingest_onchain_data(latest_block_height: i64) -> Result<(), Ingesti
         let num_outputs = transaction.output.len() as i32;
 
         // Insert or update the transaction data using ON CONFLICT to update if needed
-        pg_client
+        client
             .execute(
                 r#"INSERT INTO "Transaction" (tx_id, block_hash, num_inputs, num_outputs) 
                    VALUES ($1, $2, $3, $4) 

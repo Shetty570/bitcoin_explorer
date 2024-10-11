@@ -13,7 +13,7 @@ export default function Nav() {
           className="mx-5 my-2"
         />
         <p className=" text-3xl font-bold text-inherit text-white">
-          BITCOIN EXPLORER
+          BITCOIN EXPLORER(BTC)
         </p>
       </NavbarBrand>
     </Navbar>

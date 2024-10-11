@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "OffChainData" ADD COLUMN     "high_24h" DOUBLE PRECISION,
+ADD COLUMN     "low_24h" DOUBLE PRECISION,
+ADD COLUMN     "price_change_1h" DOUBLE PRECISION,
+ADD COLUMN     "price_change_24h" DOUBLE PRECISION;

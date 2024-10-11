@@ -1,46 +1,54 @@
 use reqwest::Error as ReqwestError;
 use crate::error::IngestionError;
+use bb8::Pool;
+use bb8_postgres::PostgresConnectionManager;
 use tokio_postgres::NoTls;
+// use std::convert::TryInto;
+use std::env;
 
-// Define the URL for the CoinGecko API
-const COINGECKO_URL: &str = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_circulating_supply=true";
-
-// Struct to match the CoinGecko response
+// Struct to map the CoinGecko detailed response
 #[derive(serde::Deserialize)]
 struct CoinGeckoResponse {
-    bitcoin: PriceData,
+    market_data: MarketData,
 }
 
 #[derive(serde::Deserialize)]
-struct PriceData {
-    usd: f64,
-    usd_market_cap: Option<f64>,           // Make these fields optional
-    usd_24h_vol: Option<f64>,
-    usd_circulating_supply: Option<f64>,
+struct MarketData {
+    current_price: Prices,
+    market_cap: Prices,
+    total_volume: Prices,
+    circulating_supply: f64,
+    price_change_percentage_24h: f64,
+    price_change_percentage_1h_in_currency: Prices,
+    high_24h: Prices,
+    low_24h: Prices,
 }
 
-// Fetch off-chain data from CoinGecko API
-pub async fn ingest_offchain_data() -> Result<(), IngestionError> {
-    let price_data = fetch_offchain_data().await?;
+#[derive(serde::Deserialize)]
+struct Prices {
+    usd: f64,
+}
 
-    // Insert off-chain data into OffChainData table
-    let (pg_client, connection) = tokio_postgres::connect(&std::env::var("POSTGRES_URL")?, NoTls).await?;
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Database connection error: {}", e);
-        }
-    });
+// Fetch and insert off-chain data into the OffChainData table
+pub async fn ingest_offchain_data(pool: Pool<PostgresConnectionManager<NoTls>>) -> Result<(), IngestionError> {
+    let market_data = fetch_offchain_data().await?;
+    let client = pool.get().await?;
 
-    // Insert off-chain data
-    pg_client
+    // Insert the off-chain data into the table
+    client
         .execute(
-            r#"INSERT INTO "OffChainData" (price, market_cap, volume, circulating_supply) 
-               VALUES ($1, $2, $3, $4)"#,
+            r#"INSERT INTO "OffChainData" 
+            (price, market_cap, volume, circulating_supply, price_change_24h, price_change_1h, high_24h, low_24h) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"#,
             &[
-                &price_data.usd,
-                &price_data.usd_market_cap.unwrap_or(0.0), // Default to 0.0 if no value
-                &price_data.usd_24h_vol.unwrap_or(0.0),   // Default to 0.0 if no value
-                &price_data.usd_circulating_supply.unwrap_or(0.0), // Default to 0.0 if no value
+                &market_data.current_price.usd,
+                &market_data.market_cap.usd,
+                &market_data.total_volume.usd,
+                &market_data.circulating_supply,
+                &market_data.price_change_percentage_24h,
+                &market_data.price_change_percentage_1h_in_currency.usd,
+                &market_data.high_24h.usd,
+                &market_data.low_24h.usd,
             ]
         )
         .await?;
@@ -49,11 +57,15 @@ pub async fn ingest_offchain_data() -> Result<(), IngestionError> {
     Ok(())
 }
 
-// Fetch the price and market data from CoinGecko API
-async fn fetch_offchain_data() -> Result<PriceData, ReqwestError> {
-    let response = reqwest::get(COINGECKO_URL).await?
+// Fetch detailed price and market data from CoinGecko
+async fn fetch_offchain_data() -> Result<MarketData, ReqwestError> {
+    // Fetch the CoinGecko URL from environment variable at runtime
+    let coingecko_url = env::var("COINGECKO_URL").expect("COINGECKO_URL must be set");
+
+    // Make the API request using the fetched URL
+    let response = reqwest::get(&coingecko_url).await?
         .json::<CoinGeckoResponse>()
         .await?;
 
-    Ok(response.bitcoin)
+    Ok(response.market_data)
 }

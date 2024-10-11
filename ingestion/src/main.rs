@@ -3,44 +3,65 @@ mod onchain;
 mod offchain;
 
 use dotenv::dotenv;
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, Duration, Instant};
 use crate::error::IngestionError;
+use bb8::{Pool};
+use bb8_postgres::PostgresConnectionManager;
+use tokio_postgres::NoTls;
 
 #[tokio::main]
 async fn main() -> Result<(), IngestionError> {
-    dotenv().ok();  // Load environment variables from .env
-    
-    let mut last_ingested_block_height: i64 = -1;  // Variable to store the last ingested block height
+    dotenv().ok();
+
+    // Set up the Postgres connection pool
+    let manager = PostgresConnectionManager::new_from_stringlike(
+        &std::env::var("POSTGRES_URL")?,
+        NoTls,
+    )?;
+    let pool = Pool::builder()
+        .max_size(10)  // Adjust pool size based on your needs
+        .build(manager)
+        .await?;
+
+    let mut last_ingested_block_height: i64 = -1;
+    let mut last_offchain_ingestion = Instant::now();
+    let mut last_onchain_ingestion = Instant::now();
 
     loop {
-        // Fetch the latest block height from the Bitcoin node
-        let latest_block_height = onchain::get_latest_block_height().await?;
-        
-        // Check if a new block has been mined
-        if latest_block_height > last_ingested_block_height {
-            // Ingest the new block
-            println!("New block detected: {}", latest_block_height);
-            
-            let (onchain_res, offchain_res) = tokio::join!(
-                onchain::ingest_onchain_data(latest_block_height),
-                offchain::ingest_offchain_data()  // Fetch and ingest off-chain data
-            );
+        let now = Instant::now();
 
-            if let Err(e) = onchain_res {
-                eprintln!("On-chain ingestion failed: {:?}", e);
-            }
-
-            if let Err(e) = offchain_res {
+        // Off-chain ingestion every 60 seconds
+        if now.duration_since(last_offchain_ingestion) >= Duration::from_secs(60) {
+            let pool_clone = pool.clone();  // Clone the pool for off-chain task
+            if let Err(e) = offchain::ingest_offchain_data(pool_clone).await {
                 eprintln!("Off-chain ingestion failed: {:?}", e);
+            } else {
+                println!("Successfully ingested off-chain data.");
+                last_offchain_ingestion = Instant::now();
             }
-
-            // Update the last ingested block height
-            last_ingested_block_height = latest_block_height;
-        } else {
-            println!("No new block detected, waiting...");
         }
 
-        // Sleep for a while before checking again (adjust the duration based on your needs)
-        sleep(Duration::from_secs(60)).await;  // e.g., check every minute
+        // On-chain ingestion every 4 minutes or when a new block is detected
+        if now.duration_since(last_onchain_ingestion) >= Duration::from_secs(4 * 60) {
+            let latest_block_height = onchain::get_latest_block_height().await?;
+
+            if latest_block_height > last_ingested_block_height {
+                println!("New block detected: {}", latest_block_height);
+                let pool_clone = pool.clone();  // Clone the pool for on-chain task
+
+                if let Err(e) = onchain::ingest_onchain_data(latest_block_height, pool_clone).await {
+
+                    eprintln!("On-chain ingestion failed: {:?}", e);
+                } else {
+                    println!("Successfully ingested on-chain data for block: {}", latest_block_height);
+                    last_ingested_block_height = latest_block_height;
+                }
+
+                last_onchain_ingestion = now;
+            }
+        }
+
+        // Sleep briefly to avoid tight loops
+        sleep(Duration::from_secs(1)).await;
     }
 }

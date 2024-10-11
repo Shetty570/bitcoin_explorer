@@ -1,4 +1,6 @@
 use thiserror::Error;
+use bb8::RunError;
+use tokio_postgres::Error as PostgresError;
 
 #[derive(Error, Debug)]
 pub enum IngestionError {
@@ -10,6 +12,9 @@ pub enum IngestionError {
     
     #[error("PostgreSQL error")]
     PostgresError(#[from] tokio_postgres::Error),
+
+    #[error("Postgres pool error")]
+    PoolError(#[from] RunError<PostgresError>), // Added handling for bb8 RunError
 
     #[error("Environment variable error")]
     EnvVarError(#[from] std::env::VarError),

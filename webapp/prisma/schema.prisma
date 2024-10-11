@@ -28,6 +28,10 @@ model OffChainData {
   market_cap         Float
   volume             Float
   circulating_supply Float
+  price_change_24h   Float?
+  price_change_1h    Float?
+  high_24h           Float?
+  low_24h            Float?
   timestamp          DateTime @default(now())
 }
 
