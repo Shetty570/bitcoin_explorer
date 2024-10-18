@@ -1,0 +1,73 @@
+services:
+  bitcoin:
+    build: 
+      context: ./bitcoin_core
+    container_name: bitcoin_core_node
+    environment:
+      RPC_USER: ${BITCOIN_RPC_USER}
+      RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD}
+      RPC_ALLOW_IP: ${BITCOIN_RPC_ALLOW_IP}
+      RPC_PORT: ${BITCOIN_RPC_PORT}
+      PRUNE: ${BITCOIN_PRUNE}
+    volumes:
+      - bitcoin_data:/bitcoin/data
+    ports:
+      - "${BITCOIN_RPC_PORT}:${BITCOIN_RPC_PORT}" # Exposing Bitcoin RPC port
+      - "8333:8333" # Bitcoin P2P port
+    networks:
+      - bitcoin_network
+
+  postgres:
+    image: postgres:13
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - bitcoin_network
+
+  migrate:
+    image: node:18-alpine
+    container_name: prisma_migrate
+    working_dir: /app
+    volumes:
+      - ./webapp:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    depends_on:
+      postgres:
+        condition: service_started
+    command: sh -c "npm install && npx prisma migrate deploy"
+    networks:
+      - bitcoin_network
+
+  ingestion:
+    build:
+      context: ./Ingestion
+      dockerfile: Dockerfile
+    container_name: ingestion_service
+    environment:
+      RPC_URL: http://${BITCOIN_RPC_USER}:${BITCOIN_RPC_PASSWORD}@bitcoin:${BITCOIN_RPC_PORT}
+      POSTGRES_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      COINGECKO_URL: ${COINGECKO_URL}
+    depends_on:
+      bitcoin:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - bitcoin_network
+
+
+volumes:
+  bitcoin_data:
+  postgres_data:
+
+networks:
+  bitcoin_network:
+    driver: bridge
