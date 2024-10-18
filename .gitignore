@@ -1,0 +1,19 @@
+# Node.js
+node_modules/
+.next/
+.env
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+Dockerfile.dev
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# OS-generated files
+.DS_Store
+
+# Keys and credentials
+*.pem
