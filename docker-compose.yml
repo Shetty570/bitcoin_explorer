@@ -1,19 +1,20 @@
 services:
   bitcoin:
-    build: 
+    build:
       context: ./bitcoin_core
     container_name: bitcoin_core_node
     environment:
       RPC_USER: ${BITCOIN_RPC_USER}
       RPC_PASSWORD: ${BITCOIN_RPC_PASSWORD}
       RPC_ALLOW_IP: ${BITCOIN_RPC_ALLOW_IP}
+      RPC_BIND: "0.0.0.0"
       RPC_PORT: ${BITCOIN_RPC_PORT}
       PRUNE: ${BITCOIN_PRUNE}
     volumes:
       - bitcoin_data:/bitcoin/data
     ports:
-      - "${BITCOIN_RPC_PORT}:${BITCOIN_RPC_PORT}" # Exposing Bitcoin RPC port
-      - "8333:8333" # Bitcoin P2P port
+      - "${BITCOIN_RPC_PORT}:${BITCOIN_RPC_PORT}"
+      - "8333:8333"
     networks:
       - bitcoin_network
 
@@ -52,6 +53,8 @@ services:
       dockerfile: Dockerfile
     container_name: ingestion_service
     environment:
+      RPC_USER: ${RPC_USER}
+      RPC_PASSWORD: ${RPC_PASSWORD}
       RPC_URL: http://${BITCOIN_RPC_USER}:${BITCOIN_RPC_PASSWORD}@bitcoin:${BITCOIN_RPC_PORT}
       POSTGRES_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       COINGECKO_URL: ${COINGECKO_URL}
@@ -70,7 +73,6 @@ services:
     container_name: webapp
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
-      NEXT_PUBLIC_API_URL: http://localhost:3000
     ports:
       - "3000:3000"
     depends_on:

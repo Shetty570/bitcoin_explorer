@@ -1,22 +1,11 @@
 # Enable the server mode to accept RPC requests
 server=1
-
-# RPC credentials for authentication
 rpcuser=${RPC_USER}
 rpcpassword=${RPC_PASSWORD}
-
-# Allow connections from any IP address
 rpcallowip=${RPC_ALLOW_IP}
-
-# Set the port for RPC communication
+rpcbind=${RPC_BIND}
 rpcport=${RPC_PORT}
-
-# Pruning to save disk space
 prune=${PRUNE}
-
-# Bind to all network interfaces
-bind=0.0.0.0
-
-# Debug options
-debug=net
-debug=rpc
+listen=1
+listenonion=0
+onlynet=ipv4
