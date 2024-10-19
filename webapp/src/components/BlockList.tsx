@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
-import { Card } from "@/components/ui/card";
 
 // Define props for block data, renamed to BlockData to avoid conflicts
 type BlockData = {
