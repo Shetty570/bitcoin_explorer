@@ -43,10 +43,10 @@ jobs:
           rsync -avz --timeout=60 -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
           ./ ubuntu@${{ secrets.EC2_PUBLIC_IP }}:/home/ubuntu/bitcoin_explorer || exit 1
 
-      - name: SSH into EC2 and run Docker Compose
+      - name: SSH into EC2 and run Docker Compose in tmux
         if: success()
         run: |
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ secrets.EC2_PUBLIC_IP }} '
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60  ubuntu@${{ secrets.EC2_PUBLIC_IP }} '
           cd /home/ubuntu/bitcoin_explorer && 
           docker-compose down && 
           docker-compose up -d --build
