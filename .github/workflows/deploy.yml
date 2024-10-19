@@ -18,6 +18,11 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
+      - name: Test SSH connection
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ secrets.EC2_PUBLIC_IP }} 'echo "SSH connection successful"'
+        continue-on-error: true
+
       - name: Create .env file
         run: |
           echo POSTGRES_USER=${{ secrets.POSTGRES_USER }} >> .env
@@ -35,11 +40,14 @@ jobs:
 
       - name: Copy files to EC2
         run: |
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no" ./ ubuntu@${{ secrets.EC2_PUBLIC_IP }}:/home/ubuntu/bitcoin_explorer
+          rsync -avz --timeout=60 -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
+          ./ ubuntu@${{ secrets.EC2_PUBLIC_IP }}:/home/ubuntu/bitcoin_explorer || exit 1
 
       - name: SSH into EC2 and run Docker Compose
+        if: success()
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
-          'cd /home/ubuntu/bitcoin_explorer && \
-          docker-compose down && \
-          docker-compose up -d --build'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@${{ secrets.EC2_PUBLIC_IP }} '
+          cd /home/ubuntu/bitcoin_explorer && 
+          docker-compose down && 
+          docker-compose up -d --build
+          '
