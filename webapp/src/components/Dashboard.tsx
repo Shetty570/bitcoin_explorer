@@ -34,37 +34,13 @@ type Transaction = {
 };
 
 export default function Dashboard() {
-  const fetcher = async (url: string) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, 10000); // Timeout after 10 seconds
-
-    try {
-      const res = await fetch(url, { signal: controller.signal });
-
-      clearTimeout(timeout);
-
+  const fetcher = (url: string) =>
+    fetch(url).then((res) => {
       if (!res.ok) {
-        const errorText = await res.text();
-        let errorMessage = `Failed to fetch ${url}: ${res.statusText}`;
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage += ` - ${errorData.message}`;
-        } catch (e) {
-          errorMessage += ` - ${errorText}`;
-        }
-        throw new Error(errorMessage);
+        throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
       }
-
       return res.json();
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        throw new Error(`Request to ${url} timed out.`);
-      }
-      throw error;
-    }
-  };
+    });
 
   // Fetch data using SWR
   const {
@@ -85,9 +61,12 @@ export default function Dashboard() {
     isLoading: blockLoading,
   } = useSWR<Block[]>("/api/blocks", fetcher, { refreshInterval: 180000 });
 
-  // Process blocks data if available
-  const blockData = blocksData
-    ? blocksData.map((block: Block) => {
+  const isLoading = priceLoading || marketLoading || blockLoading;
+  const error = priceError || marketError || blockError;
+
+  const blockData = !blocksData
+    ? []
+    : blocksData.map((block: Block) => {
         // Parse the block time as a UTC date
         const utcDate = new Date(block.block_time);
 
@@ -111,8 +90,10 @@ export default function Dashboard() {
             num_outputs: tx.num_outputs,
           })),
         };
-      })
-    : [];
+      });
+
+  if (isLoading) return <p>Loading...</p>;
+  if (error) return <p>Failed to load data: {error.message}</p>;
 
   return (
     <>
@@ -120,35 +101,15 @@ export default function Dashboard() {
       <div className="p-4 sm:p-6 md:p-8 lg:p-10 xl:p-12 max-w-full mx-auto">
         {/* Price History Graph */}
         <p className="text-white font-bold text-2xl mb-2">Price History</p>
-        {priceLoading ? (
-          <p>Loading price data...</p>
-        ) : priceError ? (
-          <p>Error loading price data: {priceError.message}</p>
-        ) : (
-          priceData && <PriceHistoryGraph data={priceData} />
-        )}
+        <PriceHistoryGraph data={priceData} />
 
         {/* Block List */}
         <h2 className="text-2xl font-bold mt-1 mb-4">Blockchain</h2>
-        {blockLoading ? (
-          <p>Loading blocks...</p>
-        ) : blockError ? (
-          <p>Error loading blocks: {blockError.message}</p>
-        ) : blocksData && blocksData.length > 0 ? (
-          <BlockList blocks={blockData} />
-        ) : (
-          <p>No block data available.</p>
-        )}
+        <BlockList blocks={blockData} />
 
         {/* Market Info */}
         <h2 className="text-2xl font-bold mt-6 mb-2">Market Info</h2>
-        {marketLoading ? (
-          <p>Loading market data...</p>
-        ) : marketError ? (
-          <p>Error loading market data: {marketError.message}</p>
-        ) : (
-          marketData && <MarketInfo marketData={marketData} />
-        )}
+        {marketData && <MarketInfo marketData={marketData} />}
       </div>
     </>
   );
