@@ -15,5 +15,5 @@ Dockerfile.dev
 # OS-generated files
 .DS_Store
 
-# Keys and credentials
+# Keys and credentialss
 *.pem
