@@ -63,6 +63,21 @@ services:
     networks:
       - bitcoin_network
 
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: webapp
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ingestion
+      - postgres
+    networks:
+      - bitcoin_network
 
 volumes:
   bitcoin_data:
