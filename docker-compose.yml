@@ -49,7 +49,7 @@ services:
 
   ingestion:
     build:
-      context: ./Ingestion
+      context: ./ingestion
       dockerfile: Dockerfile
     container_name: ingestion_service
     environment:
