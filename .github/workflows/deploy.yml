@@ -18,39 +18,28 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
+      - name: Create .env file
+        run: |
+          echo POSTGRES_USER=${{ secrets.POSTGRES_USER }} >> .env
+          echo POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} >> .env
+          echo POSTGRES_DB=${{ secrets.POSTGRES_DB }} >> .env
+          echo RPC_USER=${{ secrets.RPC_USER }} >> .env
+          echo RPC_PASSWORD=${{ secrets.RPC_PASSWORD }} >> .env
+          echo BITCOIN_RPC_USER=${{ secrets.BITCOIN_RPC_USER }} >> .env
+          echo BITCOIN_RPC_PASSWORD=${{ secrets.BITCOIN_RPC_PASSWORD }} >> .env
+          echo COINGECKO_URL=${{ secrets.COINGECKO_URL }} >> .env
+          echo BITCOIN_RPC_ALLOW_IP=${{ secrets.BITCOIN_RPC_ALLOW_IP }} >> .env
+          echo BITCOIN_RPC_PORT=${{ secrets.BITCOIN_RPC_PORT }} >> .env
+          echo BITCOIN_PRUNE=${{ secrets.BITCOIN_PRUNE }} >> .env
+          echo RPC_BIND=${{ secrets.RPC_BIND }} >> .env
+
       - name: Copy files to EC2
         run: |
           scp -o StrictHostKeyChecking=no -r * ubuntu@${{ secrets.EC2_PUBLIC_IP }}:/home/ubuntu/bitcoin_explorer
 
       - name: SSH into EC2 and run Docker Compose
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          RPC_USER: ${{ secrets.RPC_USER }}
-          RPC_PASSWORD: ${{ secrets.RPC_PASSWORD }}
-          BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
-          BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
-          COINGECKO_URL: ${{ secrets.COINGECKO_URL }}
-          BITCOIN_RPC_ALLOW_IP: ${{ secrets.BITCOIN_RPC_ALLOW_IP }}
-          BITCOIN_RPC_PORT: ${{ secrets.BITCOIN_RPC_PORT }}
-          BITCOIN_PRUNE: ${{ secrets.BITCOIN_PRUNE }}
-          RPC_BIND: ${{ secrets.RPC_BIND }}
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} << EOF
-          cd /home/ubuntu/bitcoin_explorer
-          echo POSTGRES_USER=${POSTGRES_USER} >> .env
-          echo POSTGRES_PASSWORD=${POSTGRES_PASSWORD} >> .env
-          echo POSTGRES_DB=${POSTGRES_DB} >> .env
-          echo RPC_USER=${RPC_USER} >> .env
-          echo RPC_PASSWORD=${RPC_PASSWORD} >> .env
-          echo BITCOIN_RPC_USER=${BITCOIN_RPC_USER} >> .env
-          echo BITCOIN_RPC_PASSWORD=${BITCOIN_RPC_PASSWORD} >> .env
-          echo COINGECKO_URL=${COINGECKO_URL} >> .env
-          echo BITCOIN_RPC_ALLOW_IP=${BITCOIN_RPC_ALLOW_IP} >> .env
-          echo BITCOIN_RPC_PORT=${BITCOIN_RPC_PORT} >> .env
-          echo BITCOIN_PRUNE=${BITCOIN_PRUNE} >> .env
-          echo RPC_BIND=${RPC_BIND} >> .env
-          docker-compose down
-          docker-compose up -d --build
-          EOF
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
+          'cd /home/ubuntu/bitcoin_explorer && \
+          docker-compose down && \
+          docker-compose up -d --build'
